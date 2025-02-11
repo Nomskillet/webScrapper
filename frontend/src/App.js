@@ -1,53 +1,74 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
+import './App.css';
 
 const App = () => {
+    const [url, setUrl] = useState('https://');
     const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const response = await axios.get('http://localhost:5001/api/scraped-data'); // Updated port
-                setData(response.data);
-            } catch (error) {
-                console.error('Error fetching data:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+    const handleScrape = async () => {
+        if (!url.startsWith('https://')) {
+            setError('URL must start with https://');
+            return;
+        }
+        setLoading(true);
+        setError('');
 
-        fetchData();
-    }, []);
-
-    if (loading) return <h1>Loading...</h1>;
+        try {
+            const response = await axios.post('http://localhost:5001/api/scrape', { url });
+            setData(response.data);
+        } catch (err) {
+            setError('Failed to scrape. Please check the URL.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
-        <div style={{ padding: '20px', fontFamily: 'Arial' }}>
-            <h1>Scraped ESPN Data</h1>
-            <table border="1" cellPadding="10" style={{ width: '100%', textAlign: 'left' }}>
-                <thead>
-                    <tr>
-                        <th>Text</th>
-                        <th>Link</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {data.map((item, index) => (
-                        <tr key={index}>
-                            <td>{item.text}</td>
-                            <td>
-                                <a href={item.href} target="_blank" rel="noopener noreferrer">
-                                    {item.href}
-                                </a>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <div className="container">
+            <h1>Web Scraper Tool</h1>
+            
+            <div className="input-group">
+                <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value.startsWith('https://') ? e.target.value : 'https://')}
+                />
+                <button onClick={handleScrape} disabled={loading}>
+                    {loading ? 'Scraping...' : 'Scrape Website'}
+                </button>
+            </div>
+
+            {error && <p className="error">{error}</p>}
+
+            {data.length > 0 && (
+                <div className="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Text</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((item, index) => (
+                                <tr key={index}>
+                                    <td>{item.text}</td>
+                                    <td>
+                                        <a href={item.href} target="_blank" rel="noopener noreferrer">
+                                            {item.href}
+                                        </a>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };
 
 export default App;
-

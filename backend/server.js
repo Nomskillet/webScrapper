@@ -2,43 +2,75 @@ const express = require('express');
 const puppeteer = require('puppeteer');
 const cors = require('cors');
 
-const app = express();  // ✅ This is missing in your code
-app.use(cors());
+const app = express();
 app.use(express.json());
+app.use(cors());
 
-const PORT = 5001;
+const launchBrowser = async () => {
+    return await puppeteer.launch({ headless: "new" });
+};
 
-// Scrape any user-entered URL
+// Scraping Function
 app.post('/api/scrape', async (req, res) => {
-    const { url } = req.body;
-
-    if (!url) {
-        return res.status(400).json({ error: 'No URL provided' });
+    let { url } = req.body;
+    if (!url.startsWith('http')) {
+        url = `https://${url}`;
     }
 
+    let browser;
     try {
-        const browser = await puppeteer.launch({ headless: true });
+        browser = await launchBrowser();
         const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-        const data = await page.evaluate((baseUrl) => {
-            const elements = document.querySelectorAll('a');
-            return Array.from(elements)
-                .map(el => ({
-                    text: el.textContent.trim(),
-                    href: el.href.startsWith('http') ? el.href : new URL(el.getAttribute('href'), baseUrl).href
+        // Scrape the links
+        const links = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll('a'))
+                .map(link => ({
+                    text: link.innerText.trim(),
+                    href: link.href
                 }))
-                .filter(item => item.text.length > 0); // Filter out empty text
-        }, url);
+                .filter(link => link.text && link.href);
+        });
 
-        await browser.close();
-        res.json(data);
+        res.json(links);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to scrape website', details: error.toString() });
+        console.error("Scraping Error:", error.message);
+        res.status(500).json({ error: "Failed to scrape the website." });
+    } finally {
+        if (browser) await browser.close();
     }
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Screenshot Function
+app.post('/api/screenshot', async (req, res) => {
+    let { url } = req.body;
+    if (!url.startsWith('http')) {
+        url = `https://${url}`;
+    }
+
+    let browser;
+    try {
+        console.log(`Capturing screenshot for: ${url}`);
+        browser = await puppeteer.launch({ headless: "new" });
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1280, height: 1024 });
+
+        // Navigate and wait for full page load
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+
+        // Capture screenshot
+        const screenshot = await page.screenshot({ encoding: 'base64' });
+
+        console.log("Screenshot captured successfully.");
+        res.json({ screenshot });
+    } catch (error) {
+        console.error("Screenshot Error:", error.message);
+        res.status(500).json({ error: "Failed to capture screenshot." });
+    } finally {
+        if (browser) await browser.close();
+    }
 });
+
+
+app.listen(5001, () => console.log("Server running on port 5001"));

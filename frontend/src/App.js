@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { CSVLink } from 'react-csv'; // Import CSV Export Library
+import { CSVLink } from 'react-csv';
 import './App.css';
 
 const App = () => {
     const [url, setUrl] = useState('https://');
     const [data, setData] = useState([]);
+    const [pageTitle, setPageTitle] = useState('');
+    const [pageDescription, setPageDescription] = useState('');
     const [screenshot, setScreenshot] = useState('');
     const [loading, setLoading] = useState(false);
     const [screenshotLoading, setScreenshotLoading] = useState(false);
@@ -18,11 +20,13 @@ const App = () => {
         }
         setLoading(true);
         setError('');
-        setScreenshot(''); // Clear previous screenshot when scraping a new website
+        setScreenshot('');
 
         try {
             const response = await axios.post('http://localhost:5001/api/scrape', { url });
-            setData(response.data);
+            setPageTitle(response.data.title);
+            setPageDescription(response.data.description);
+            setData(response.data.links);
         } catch (err) {
             setError('Failed to scrape. Please check the URL.');
         } finally {
@@ -40,10 +44,9 @@ const App = () => {
 
         try {
             const response = await axios.post('http://localhost:5001/api/screenshot', { url });
-            console.log("Screenshot API Response:", response.data); // Debugging line
+            console.log("Screenshot API Response:", response.data);
 
             if (response.data.screenshot) {
-                // Set the Base64 image with the correct data URI format
                 setScreenshot(`data:image/png;base64,${response.data.screenshot}`);
             } else {
                 setError('Failed to capture screenshot.');
@@ -58,7 +61,9 @@ const App = () => {
     const handleUrlChange = (e) => {
         const newUrl = e.target.value.startsWith('https://') ? e.target.value : 'https://';
         setUrl(newUrl);
-        setScreenshot(''); // Clear screenshot when entering a new URL
+        setScreenshot('');
+        setPageTitle('');
+        setPageDescription('');
     };
 
     return (
@@ -69,7 +74,7 @@ const App = () => {
                 <input
                     type="text"
                     value={url}
-                    onChange={handleUrlChange} // Updated to clear screenshot when URL changes
+                    onChange={handleUrlChange}
                 />
                 <button onClick={handleScrape} disabled={loading}>
                     {loading ? 'Scraping...' : 'Scrape Website'}
@@ -81,6 +86,14 @@ const App = () => {
 
             {error && <p className="error">{error}</p>}
 
+            {/* Display Page Title and Description */}
+            {pageTitle && (
+                <div className="page-info">
+                    <h2>{pageTitle}</h2>
+                    <p>{pageDescription}</p>
+                </div>
+            )}
+
             {/* Screenshot Display */}
             {screenshot && (
                 <div className="screenshot-container">
@@ -89,7 +102,7 @@ const App = () => {
                 </div>
             )}
 
-            {/* Download CSV Button - Only Shows If Data Exists */}
+            {/* Download CSV Button */}
             {data.length > 0 && (
                 <CSVLink data={data} filename="scraped_data.csv" className="download-btn">
                     Download CSV

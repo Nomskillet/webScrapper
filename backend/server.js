@@ -10,7 +10,7 @@ const launchBrowser = async () => {
     return await puppeteer.launch({ headless: "new" });
 };
 
-// Scraping Function - Extract More Data
+// Scraping Function
 app.post('/api/scrape', async (req, res) => {
     let { url } = req.body;
     if (!url.startsWith('http')) {
@@ -23,26 +23,12 @@ app.post('/api/scrape', async (req, res) => {
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-        // Scrape the page title
+        // Extract page title and meta description
         const title = await page.title();
-
-        // Scrape meta description
-        const metaDescription = await page.$eval('meta[name="description"]', el => el.content)
-            .catch(() => 'No description available.');
-
-        // Scrape headings (H1, H2, H3)
-        const headings = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('h1, h2, h3'))
-                .map(h => ({ tag: h.tagName, text: h.innerText.trim() }))
-                .filter(h => h.text.length > 0);
-        });
-
-        // Scrape images (first 5 images for efficiency)
-        const images = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('img'))
-                .map(img => img.src)
-                .slice(0, 5);
-        });
+        const description = await page.$eval(
+            'meta[name="description"]',
+            (meta) => meta.content || "No description found"
+        ).catch(() => "No description found");
 
         // Scrape the links
         const links = await page.evaluate(() => {
@@ -54,7 +40,7 @@ app.post('/api/scrape', async (req, res) => {
                 .filter(link => link.text && link.href);
         });
 
-        res.json({ title, metaDescription, headings, images, links });
+        res.json({ title, description, links });
     } catch (error) {
         console.error("Scraping Error:", error.message);
         res.status(500).json({ error: "Failed to scrape the website." });
@@ -63,7 +49,7 @@ app.post('/api/scrape', async (req, res) => {
     }
 });
 
-// Screenshot Function (Unchanged)
+// Screenshot Function
 app.post('/api/screenshot', async (req, res) => {
     let { url } = req.body;
     if (!url.startsWith('http')) {
@@ -73,7 +59,7 @@ app.post('/api/screenshot', async (req, res) => {
     let browser;
     try {
         console.log(`Capturing screenshot for: ${url}`);
-        browser = await launchBrowser();
+        browser = await puppeteer.launch({ headless: "new" });
         const page = await browser.newPage();
         await page.setViewport({ width: 1280, height: 1024 });
 
@@ -81,10 +67,10 @@ app.post('/api/screenshot', async (req, res) => {
 
         const screenshot = await page.screenshot({ encoding: 'base64' });
 
-        console.log("Screenshot captured successfully.");
+        // console.log("Screenshot captured successfully.");
         res.json({ screenshot });
     } catch (error) {
-        console.error("Screenshot Error:", error.message);
+        // console.error("Screenshot Error:", error.message);
         res.status(500).json({ error: "Failed to capture screenshot." });
     } finally {
         if (browser) await browser.close();
@@ -92,3 +78,4 @@ app.post('/api/screenshot', async (req, res) => {
 });
 
 app.listen(5001, () => console.log("Server running on port 5001"));
+
